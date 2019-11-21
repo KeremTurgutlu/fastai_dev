@@ -121,11 +121,12 @@ class BatchNorm1dFlat(nn.BatchNorm1d):
 #Cell
 class LinBnDrop(nn.Sequential):
     "Module grouping `BatchNorm1d`, `Dropout` and `Linear` layers"
-    def __init__(self, n_in, n_out, bn=True, p=0., act=None):
-        layers = [nn.Linear(n_in, n_out, bias=not bn)]
-        if act is not None: layers.append(act)
-        if bn: layers.append(BatchNorm(n_out, ndim=1))
+    def __init__(self, n_in, n_out, bn=True, p=0., act=None, lin_first=False):
+        layers = [BatchNorm(n_out if lin_first else n_in, ndim=1)] if bn else []
         if p != 0: layers.append(nn.Dropout(p))
+        lin = [nn.Linear(n_in, n_out, bias=not bn)]
+        if act is not None: lin.append(act)
+        layers = lin+layers if lin_first else layers+lin
         super().__init__(*layers)
 
 #Cell
@@ -251,7 +252,7 @@ class LabelSmoothingCrossEntropy(Module):
         else:
             loss = -log_preds.sum(dim=-1)
             if self.reduction=='mean':  loss = loss.mean()
-        return loss*self.eps/c + (1-self.eps) * F.nll_loss(log_preds, target, reduction=self.reduction)
+        return loss*self.eps/c + (1-self.eps) * F.nll_loss(log_preds, target.long(), reduction=self.reduction)
 
     def activation(self, out): return F.softmax(out, dim=-1)
     def decodes(self, out):    return out.argmax(dim=-1)
